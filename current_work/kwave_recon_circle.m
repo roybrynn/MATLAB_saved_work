@@ -1,5 +1,4 @@
-% 360 Sensor Case
-% HAVE TO CLEAR ALL OUTPUT BEFORE USING
+%Clear all output
 
 % create the computational grid
 Nx = 128;           % number of grid points in the x (row) direction
