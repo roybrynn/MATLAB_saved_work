@@ -1,4 +1,3 @@
-
 % HAVE TO CLEAR ALL OUTPUT BEFORE USING
 
 % create the computational grid
