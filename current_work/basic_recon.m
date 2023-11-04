@@ -1,3 +1,4 @@
+clear all output
 % This is a 360 Sensor Case Using a Cartesian Circle
 % The code performs a forward simulation as well as reconstruction
 % This code is pulled **exactly** from k-wave sources
@@ -19,8 +20,8 @@ medium.alpha_power = 1.5;
 
 % create initial pressure distribution using makeDisc
 disc_magnitude = 5; % [Pa]
-disc_x_pos = 50;    % [grid points]
-disc_y_pos = 50;    % [grid points]
+disc_x_pos = 64;    % [grid points]
+disc_y_pos = 64;    % [grid points]
 disc_radius = 8;    % [grid points]
 disc_1 = disc_magnitude * makeDisc(Nx, Ny, disc_x_pos, disc_y_pos, disc_radius);
 
@@ -41,12 +42,17 @@ sensor.mask = makeCartCircle(sensor_radius, num_sensor_points);
 % run the simulation
 sensor_data = kspaceFirstOrder2D(kgrid, medium, source, sensor);
 
+%plotting
+sensor_radius_grid_points = round(sensor_radius / kgrid.dx);
+binary_sensor_mask = makeCircle(kgrid.Nx, kgrid.Ny, kgrid.Nx/2 + 1, kgrid.Ny/2 + 1, sensor_radius_grid_points, 360);
+
+
 hold on
 % plot the simulated sensor data
 % IF YOU WANT TO SEE THE SENSOR MASK, MAKE EQUIVALENT BINARY SENSOR
 % MASK AND ADD TO source.p0
 figure;
-imagesc(source.p0, [-1, 1]);
+imagesc(source.p0 + binary_sensor_mask, [-1, 1]);
 colormap(getColorMap);
 ylabel('Sensor Position');
 xlabel('Time Step');
@@ -74,8 +80,10 @@ p0_estimate = kspaceFirstOrder2D(kgrid_recon, medium, source, sensor);
 
 % plot the simulated RECON sensor data
 hold on
+img = imagesc(p0_estimate + binary_sensor_mask, [-1, 1]);
+maskedRgbImage = img .* cast(~binary_sensor_mask, 'like', img);
+maskedRgbImage;
 figure;
-imagesc(p0_estimate, [-1, 1]);
 colormap(getColorMap);
 ylabel('x');
 xlabel('y');

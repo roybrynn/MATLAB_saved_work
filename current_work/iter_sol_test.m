@@ -1,3 +1,9 @@
+clear all output
+% Test Iterative Solution - K-WAVE
+
+% THE FOLLOWING CODE IS FROM BASIC_RECON
+
+% 360 Sensor Case
 % HAVE TO CLEAR ALL OUTPUT BEFORE USING
 
 % create the computational grid
@@ -11,90 +17,73 @@ kgrid = kWaveGrid(Nx, dx, Ny, dy);
 medium.sound_speed = 1500;  % [m/s]
 medium.alpha_coeff = 0.75;  % [dB/(MHz^y cm)]
 medium.alpha_power = 1.5;
-%kgrid.makeTime(medium.sound_speed);
 
-% create initial pressure distribution using makeDisc (MAYBE CHANGE THESE
-% AROUND)
-disc_magnitude = 2; % [Pa]
+% create initial pressure distribution using makeDisc
+disc_magnitude = 5; % [Pa]
 disc_x_pos = 50;    % [grid points]
-disc_y_pos = 70;    % [grid points]
-disc_radius = 2;    % [grid points]
+disc_y_pos = 50;    % [grid points]
+disc_radius = 8;    % [grid points]
 disc_1 = disc_magnitude * makeDisc(Nx, Ny, disc_x_pos, disc_y_pos, disc_radius);
 
-disc_magnitude = 0; % [Pa]
-disc_x_pos = 40;    % [grid points]
-disc_y_pos = 25;    % [grid points]
-disc_radius = 1.5;    % [grid points]
+disc_magnitude = 3; % [Pa]
+disc_x_pos = 80;    % [grid points]
+disc_y_pos = 60;    % [grid points]
+disc_radius = 5;    % [grid points]
 disc_2 = disc_magnitude * makeDisc(Nx, Ny, disc_x_pos, disc_y_pos, disc_radius);
 
-disc_magnitude = 0; % [Pa]
-disc_x_pos = 20;    % [grid points]
-disc_y_pos = 35;    % [grid points]
-disc_radius = 3;    % [grid points]
-disc_3 = disc_magnitude * makeDisc(Nx, Ny, disc_x_pos, disc_y_pos, disc_radius);
+source.p0 = disc_1 + disc_2;
 
-%f(x,y)
-source.p0 = disc_1 + disc_2 + disc_3;
+% define a centered circular sensor
+sensor_radius = 4e-3;   % [m]
+num_sensor_points = 50;
+%cart_sensor_mask = makeCartCircle(sensor_radius, num_sensor_points);
 
-% define a BINARY sensor mask
-sensor_x_pos = Nx/2;        % [grid points]
-sensor_y_pos = Ny/2;        % [grid points]
-sensor_radius = Nx/2 - 22;  % [grid points]
-sensor_arc_angle = 3*pi/2;  % [90 degree sensor gap]
-sensor.mask = makeCircle(Nx, Ny, sensor_x_pos, sensor_y_pos, sensor_radius, sensor_arc_angle);
+% create the grid, same as before
+kgrid_recon = kgrid;
+
+sensor_radius_grid_points = round(sensor_radius / kgrid_recon.dx);
+binary_sensor_mask = makeCircle(kgrid_recon.Nx, kgrid_recon.Ny, kgrid_recon.Nx/2 + 1, kgrid_recon.Ny/2 + 1, sensor_radius_grid_points, 360);
+
+sensor.mask = binary_sensor_mask;
+
+% run the simulation
+sensor_data = kspaceFirstOrder2D(kgrid, medium, source, sensor);
 
 hold on
+% plot the simulated sensor data
+% IF YOU WANT TO SEE THE SENSOR MASK, MAKE EQUIVALENT BINARY SENSOR
+% MASK AND ADD TO source.p0
 figure;
-imagesc(sensor.mask + source.p0, [-1, 1]);
+imagesc(source.p0, [-1, 1]);
 colormap(getColorMap);
 ylabel('Sensor Position');
 xlabel('Time Step');
 colorbar;
 hold off
 
-% THE FOLLOWING CODE COMES FROM:
-%http://www.medphys.ucl.ac.uk/research/mle/pdf_files/J_2010_Treeby_JBO_k-Wave_MATLAB_toolbox.pdf
+%reset the pressure
+source.p0 = 0;
 
-% create the time array
-kgrid.t_array = makeTime(kgrid, medium.sound_speed);
-% run the forward simulation
+% create the grid, same as before
+kgrid_recon = kgrid;
 
-sensor_data = kspaceFirstOrder2D(kgrid,medium, source, sensor);
+% create a binary sensor mask of an equivalent continuous circle
+sensor_radius_grid_points = round(sensor_radius / kgrid_recon.dx);
+binary_sensor_mask = makeCircle(kgrid_recon.Nx, kgrid_recon.Ny, kgrid_recon.Nx/2 + 1, kgrid_recon.Ny/2 + 1, sensor_radius_grid_points, 360);
 
-% reorder the simulation data < (ONLY WORKS ON 2D DATA - fixes the gaps)
-sensor_data = reorderSensorData(kgrid, sensor, sensor_data); %this doesnt seem to solve the problem
+% assign to sensor structure
+sensor.mask = binary_sensor_mask;
 
 % ........................................................ %
 % NEW CODE BELOW %
 % ........................................................ %
 
-
-% load an image for the initial pressure distribution
-p0_image = loadImage('initial_pressure_with_sensors.png');
-
-% make it binary
-p0_image = double(p0_image > 0);
-
-% smooth the initial pressure distribution
-p0 = smooth(p0_image, true);
-
-% assign to the source structure
-source.p0 = p0;
-
-% use the sensor points as sources in time reversal
 source.p_mask = sensor.mask;
-
-% time reverse and assign the data
 source.p = fliplr(sensor_data);	
-
-% enforce, rather than add, the time-reversed pressure values
-source.p_mode = 'dirichlet';    
-
-% set the simulation to record the final image (at t = 0)
+source.p_mode = 'dirichlet';
 sensor.record = {'p_final'};
 
 % run the time reversal reconstruction
-source.p0 = 0;
 p0_estimate = kspaceFirstOrder2D(kgrid, medium, source, sensor);
 
 % apply a positivity condition
