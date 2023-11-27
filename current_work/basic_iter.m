@@ -1,6 +1,12 @@
 clear all output
 % BASIC ITERATIVE SOLUTION - K-WAVE
 
+% Notes: changing the radius means the recon is not as accurate. Values
+% outside the sensor radius end up being misvalued and generally incorrect 
+% (as expected). Works well with very low values (0.25, 0.1) of magnitude. 
+% With very large values (10 & 50) it works well but verberations tend to 
+% be and issue as the waves overlap and are so large.
+
 % THE FOLLOWING CODE IS FROM BASIC_RECON
 
 % 360 Sensor Case
@@ -21,11 +27,11 @@ medium.alpha_power = 1.5;
 % create initial pressure distribution using makeDisc
 disc_magnitude = 5; % [Pa]
 disc_x_pos = 50;    % [grid points]
-disc_y_pos = 50;    % [grid points]
-disc_radius = 8;    % [grid points]
+disc_y_pos = 50;    % [grid points] ANY PT OUTSIDE OF THE SENSORS WILL BE MISCALCULATED
+disc_radius = 8;    % [grid points] 
 disc_1 = disc_magnitude * makeDisc(Nx, Ny, disc_x_pos, disc_y_pos, disc_radius);
 
-disc_magnitude = 3; % [Pa]
+disc_magnitude = 3;; % [Pa]
 disc_x_pos = 80;    % [grid points]
 disc_y_pos = 60;    % [grid points]
 disc_radius = 5;    % [grid points]
@@ -34,7 +40,7 @@ disc_2 = disc_magnitude * makeDisc(Nx, Ny, disc_x_pos, disc_y_pos, disc_radius);
 source.p0 = disc_1 + disc_2;
 
 % define a centered circular sensor
-sensor_radius = 4e-3;   % [m]
+sensor_radius = 4e-3; % [m]
 num_sensor_points = 50;
 %cart_sensor_mask = makeCartCircle(sensor_radius, num_sensor_points);
 
@@ -46,7 +52,7 @@ binary_sensor_mask = makeCircle(kgrid_recon.Nx, kgrid_recon.Ny, kgrid_recon.Nx/2
 
 sensor.mask = binary_sensor_mask;
 
-% run the simulation
+% run the FORWARD simulation
 sensor_data = kspaceFirstOrder2D(kgrid, medium, source, sensor);
 
 hold on
@@ -54,7 +60,7 @@ hold on
 % IF YOU WANT TO SEE THE SENSOR MASK, MAKE EQUIVALENT BINARY SENSOR
 % MASK AND ADD TO source.p0
 figure;
-imagesc(source.p0, [-1, 1]);
+imagesc(source.p0);
 colormap(getColorMap);
 ylabel('Sensor Position');
 xlabel('Time Step');
@@ -68,6 +74,7 @@ source.p0 = 0;
 kgrid_recon = kgrid;
 
 % create a binary sensor mask of an equivalent continuous circle
+% CHECK NUMBER OF GRID POINTS
 sensor_radius_grid_points = round(sensor_radius / kgrid_recon.dx);
 binary_sensor_mask = makeCircle(kgrid_recon.Nx, kgrid_recon.Ny, kgrid_recon.Nx/2 + 1, kgrid_recon.Ny/2 + 1, sensor_radius_grid_points, 360);
 
@@ -91,7 +98,7 @@ source.p_mode = 'dirichlet';
 % record the final - this doesn't work?
 sensor.record = {'p_final'};
 
-% run the time reversal reconstruction
+% run the BACKWARD SIMULATION (first) time reversal reconstruction
 p0_estimate = kspaceFirstOrder2D(kgrid_recon, medium, source, sensor);
 
 % apply a positivity condition
@@ -116,10 +123,20 @@ sensor = rmfield(sensor, 'record');
 % HAD TO REMOVE FIELD OTHERWISE IT DOESNT RUN
 source = rmfield(source, 'p');
 % calculate the time series using the latest estimate of p0
+% RUN THE FORWARD SIMULATION (using the final p0 values as the source)
 sensor_data2 = kspaceFirstOrder2D(kgrid, medium, source, sensor);
 
 % calculate the error in the estimated time series
 data_difference = sensor_data - sensor_data2;
+hold on
+figure;
+imagesc(data_difference);
+colormap(getColorMap);
+ylabel('x');
+xlabel('y');
+colorbar;
+hold off
+
 
 % assign the data_difference as a time-reversal source
 source.p_mask = sensor.mask;
@@ -130,7 +147,7 @@ source.p_mode = 'dirichlet';
 % set the simulation to record the final image (at t = 0)
 sensor.record = {'p_final'};
 
-% run the time reversal reconstruction
+% run the BACKWARD SIMULATION (second) time reversal reconstruction
 p0_update = kspaceFirstOrder2D(kgrid, medium, source, sensor);
 
 % add the update to the latest image
@@ -142,10 +159,9 @@ p0_estimate.p_final = p0_estimate.p_final .* (p0_estimate.p_final > 0);
 % plot the MULTIPLE X simulated RECON sensor data
 hold on
 figure;
-imagesc(p0_estimate.p_final + sensor.mask, [-1, 1]);
+imagesc(p0_estimate.p_final + sensor.mask);
 colormap(getColorMap);
 ylabel('x');
 xlabel('y');
 colorbar;
 hold off
-clear all output;
